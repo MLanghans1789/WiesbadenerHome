@@ -439,10 +439,11 @@ function wbResolvePanel(){
   const localOnly=a.recipes.filter(x=>!b.recipes.some(y=>y.id===x.id)).map(x=>x.name);
   const remoteOnly=b.recipes.filter(x=>!a.recipes.some(y=>y.id===x.id)).map(x=>x.name);
   details=`<p>Rezepte: Mac <strong>${a.recipes.length}</strong>, Cloud <strong>${b.recipes.length}</strong>. Aufgaben: Mac ${a.tasks.length}, Cloud ${b.tasks.length}.</p><p>Nur auf dem Mac: ${esc(localOnly.join(', ')||'keine zusätzlichen Rezepte')}. Nur in der Cloud: ${esc(remoteOnly.join(', ')||'keine zusätzlichen Rezepte')}.</p><p>Abweichende Bereiche: ${esc(keys.join(', ')||'keine')}.</p><details><summary>Unterschiede im Einzelnen anzeigen</summary>${keys.map(k=>`<h4>${esc(k)}</h4><p>Cloud:</p><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(JSON.stringify(b[k],null,2)??'(fehlt)')}</pre><p>Geprüfter Mac-Stand:</p><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(JSON.stringify(a[k],null,2)??'(fehlt)')}</pre>`).join('')}</details>`;
+  details+=`<p><label><input id="wbResolveBackupsConfirmed" type="checkbox"> Beide JSON-Sicherungen sind heruntergeladen und die Unterschiede sind geprüft.</label></p><p><button class="primary" onclick="wbResolveUseCloud()" ${wbResolveBusy?'disabled':''}>Cloud-Stand auf diesem Gerät übernehmen</button></p><p>Dies ersetzt nur die Daten dieses Geräts durch den geprüften Cloud-Stand. Die Cloud bleibt unverändert.</p>`;
   if(review.missing.length)details+=`<p role="alert"><strong>Übernahme gesperrt:</strong> Folgende Cloud-Inhalte fehlen oder unterscheiden sich im Mac-Stand: ${esc(review.missing.join(', '))}. Bitte beide neuen Sicherungen erneut vergleichen und zusammenführen.</p>`;
-  else details+=`<p>Die Cloud-Inhalte sind im Mac-Stand enthalten. Abweichende Entfernungsmarkierungen der Einkaufsliste werden durch die Mac-Markierungen ersetzt; Artikel können dadurch wieder erscheinen. Die Übernahme speichert den gesamten oben geprüften Mac-Stand in der Cloud.</p><label><input id="wbResolveBackupsConfirmed" type="checkbox"> Beide JSON-Sicherungen sind heruntergeladen und die Unterschiede sind geprüft.</label><p><button class="primary" onclick="wbResolveCommit()" ${wbResolveBusy?'disabled':''}>Geprüften Mac-Stand in Cloud übernehmen</button></p>`;
+  else details+=`<p>Die Cloud-Inhalte sind im Mac-Stand enthalten. Abweichende Entfernungsmarkierungen der Einkaufsliste werden durch die Mac-Markierungen ersetzt; Artikel können dadurch wieder erscheinen. Die Übernahme speichert den gesamten oben geprüften Mac-Stand in der Cloud.</p><p><button class="primary" onclick="wbResolveCommit()" ${wbResolveBusy?'disabled':''}>Geprüften Mac-Stand in Cloud übernehmen</button></p>`;
  }
- return `<div class="panel"><h2>Geprüften Mac-Stand in die Cloud übernehmen</h2><p>Die automatische Synchronisierung bleibt pausiert. Sichere und vergleiche zuerst beide Stände. Falls inzwischen Cloud-Inhalte hinzugekommen sind oder geändert wurden, wird die Übernahme gesperrt.</p><p role="status">${esc(wbResolveMessage)}</p>${!wbBringSession?'<button onclick="wbSyncLoginPrompt()">Für den Vergleich bei Supabase anmelden</button>':''}<button onclick="wbResolvePrepare()" ${wbResolveBusy?'disabled':''}>Beide Stände sichern &amp; Vergleich vorbereiten</button>${details}</div>`;
+ return `<div class="panel"><h2>Datenstände vergleichen und Übernahmerichtung wählen</h2><p>Die automatische Synchronisierung bleibt pausiert. Sichere und vergleiche zuerst beide Stände. Wähle nach dem Vergleich entweder den Cloud-Stand für dieses Gerät oder den geprüften lokalen Stand für die Cloud. Fehlende Cloud-Inhalte sperren die Übernahme in die Cloud.</p><p role="status">${esc(wbResolveMessage)}</p>${!wbBringSession?'<button onclick="wbSyncLoginPrompt()">Für den Vergleich bei Supabase anmelden</button>':''}<button onclick="wbResolvePrepare()" ${wbResolveBusy?'disabled':''}>Beide Stände sichern &amp; Vergleich vorbereiten</button>${details}</div>`;
 }
 async function wbResolveCommit(){
  if(wbResolveBusy||wbSyncBusy||wbSyncWriting||wbSyncRequests)return;
@@ -465,6 +466,31 @@ async function wbResolveCommit(){
   wbResolveMessage='✓ Der geprüfte Mac-Stand wurde in die Cloud übernommen. Die automatische Synchronisierung bleibt pausiert. Bitte vor dem Fortsetzen auch die lokalen iPad-Daten sichern.';
  }catch(e){wbResolveReview=null;wbResolveMessage='Übernahme nicht bestätigt: '+e.message+' Bei einem Verbindungsabbruch kann die Anfrage dennoch angekommen sein. Vor einem weiteren Versuch beide Stände erneut vergleichen.'}
  finally{wbResolveBusy=false;wbSyncWriting=false;render()}
+}
+async function wbResolveUseCloud(){
+ if(wbResolveBusy||wbSyncBusy||wbSyncWriting||wbSyncRequests)return;
+ const review=wbResolveReview;
+ if(!review||!wbResolveValid(review.remote)){alert('Bitte zuerst beide Stände sichern und vergleichen.');return}
+ if(!document.getElementById('wbResolveBackupsConfirmed')?.checked){alert('Bitte zuerst beide heruntergeladenen Sicherungen und die Unterschiede bestätigen.');return}
+ if(!wbSyncIsPaused()||wbResolveCanonical(state)!==wbResolveCanonical(review.local)){wbResolveReview=null;wbResolveMessage='Der lokale Stand oder die Cloud-Pause wurde geändert. Bitte den Vergleich erneut vorbereiten.';render();return}
+ if(!confirm('Den geprüften Cloud-Stand auf diesem Gerät übernehmen? Die bisherigen lokalen Daten dieses Geräts werden ersetzt. Die Cloud wird nicht verändert. Deine Sicherungen bleiben erhalten.'))return;
+ wbResolveBusy=true;wbSyncBusy=true;
+ try{
+  const rows=await wbResolveApi('GET',review.user);
+  if(rows.length!==1||rows[0].updated_at!==review.version||wbResolveCanonical(rows[0].data)!==wbResolveCanonical(review.remote))throw Error('Die Cloud wurde inzwischen geändert. Bitte beide Stände erneut sichern und vergleichen.');
+  if(!wbSyncIsPaused()||wbResolveCanonical(state)!==wbResolveCanonical(review.local))throw Error('Der lokale Stand oder die Cloud-Pause wurde inzwischen geändert. Bitte erneut vergleichen.');
+  const cloud=structuredClone(rows[0].data);
+  // The two downloaded backups are required; retain a durable local recovery copy as well.
+  localStorage.setItem(WB_SYNC_RECOVERY_KEY,JSON.stringify({savedAt:new Date().toISOString(),data:state}));
+  localStorage.setItem(KEY,JSON.stringify(cloud));state=cloud;
+  wbSyncSetBase(cloud);wbSyncVersion=rows[0].updated_at;wbSyncUserId=review.user;
+  wbSyncEnabled=true;localStorage.setItem(WB_SYNC_DEVICE_KEY,'yes');
+  wbSyncDirty=false;localStorage.removeItem(WB_SYNC_PENDING_KEY);wbSyncConflict=false;wbSyncConflictPaths=[];
+  wbSyncLastSaved=JSON.stringify(cloud);wbSyncReady=false;wbResolveReview=null;
+  wbResolveMessage='✓ Cloud-Stand auf diesem Gerät übernommen. Die Cloud wurde nicht verändert. Prüfe Rezepte und Aufgaben; danach kannst du die Cloud-Synchronisierung fortsetzen.';
+  wbSyncStatusSet('✓ Cloud-Stand lokal übernommen. Cloud bleibt pausiert.');
+ }catch(e){wbResolveReview=null;wbResolveMessage='Cloud-Übernahme nicht abgeschlossen: '+e.message}
+ finally{wbResolveBusy=false;wbSyncBusy=false;render()}
 }
 // END reviewed cloud transfer.
 
