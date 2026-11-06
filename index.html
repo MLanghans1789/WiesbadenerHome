@@ -287,7 +287,12 @@ let wbSyncUserId='',wbSyncVersion='',wbSyncStatus='Noch nicht verbunden.',wbSync
 let wbSyncWriteTimer=null,wbSyncWriting=false,wbSyncLastSaved='',wbSyncShowLogin=false,wbSyncConflictPaths=[];
 let wbSyncBase=null;try{wbSyncBase=JSON.parse(localStorage.getItem(WB_SYNC_BASE_KEY)||'null')}catch{}
 function wbSyncSetBase(value){wbSyncBase=structuredClone(value);localStorage.setItem(WB_SYNC_BASE_KEY,JSON.stringify(wbSyncBase))}
-function wbSyncEqual(a,b){return JSON.stringify(a)===JSON.stringify(b)}
+function wbSyncEqual(a,b){return wbSyncCanonicalData(a)===wbSyncCanonicalData(b)}
+function wbSyncCanonicalData(value){
+ if(Array.isArray(value))return '['+value.map(wbSyncCanonicalData).join(',')+']';
+ if(value&&typeof value==='object')return '{'+Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+wbSyncCanonicalData(value[k])).join(',')+'}';
+ return JSON.stringify(value);
+}
 function wbSyncMerge(base,local,remote,path=''){
  if(wbSyncEqual(local,remote))return {value:local,conflicts:[]};
  if(wbSyncEqual(local,base))return {value:remote,conflicts:[]};
