@@ -145,7 +145,7 @@ function editTaskNotes(id,date){let t=state.tasks.find(x=>x.id===id);if(!t)retur
 function changeCalView(v){calView=v;calOffset=0;calFocus=localDate(new Date());render()}
 function moveCal(n){if(calView==='month')calOffset+=n;else calFocus=localDate(addDays(parseDate(calFocus),n*(calView==='week'?7:1)));render()}
 function calendar(){let now=new Date(),first=new Date(now.getFullYear(),now.getMonth()+calOffset,1,12),year=first.getFullYear(),month=first.getMonth(),offset=(first.getDay()+6)%7,last=new Date(year,month+1,0).getDate();let focus=parseDate(calFocus),start=calView==='week'?addDays(focus,-(focus.getDay()+6)%7):focus;let dates=calView==='month'?Array.from({length:last},(_,i)=>localDate(new Date(year,month,i+1,12))):Array.from({length:calView==='week'?7:1},(_,i)=>localDate(addDays(start,i)));let title=calView==='month'?first.toLocaleDateString('de-DE',{month:'long',year:'numeric'}):calView==='week'?dayName(start)+' – '+dayName(addDays(start,6)):focus.toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});let cols=calView==='day'?1:7;let cards=dates.map(date=>{let day=parseDate(date),entries=tasksOn(date).slice().sort((a,b)=>(a.time||'').localeCompare(b.time||''));return `<div class="cal-cell ${calView==='day'?'cal-single':''}"><div class="row cal-dayhead"><strong>${calView==='month'?day.getDate():day.toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'})}</strong><button class="day-add" aria-label="Termin am ${date} hinzufügen" title="Termin hinzufügen" onclick="openTaskDialog('${date}')">+</button></div>${googleEventsForDay(date).map(e=>`<div class="cal-event wb-google-event" title="${esc(e._calendarName)} · Google Kalender" onclick="window.open('${esc(e.htmlLink||'https://calendar.google.com/calendar/u/0/r')}','_blank','noopener')"><span class="muted">${esc(e._time||'Ganztägig')}</span> ${esc(e.summary||'Ohne Titel')} <span class="wb-google-badge">${esc(e._calendarName)}</span></div>`).join('')}${entries.map(t=>`<div class="cal-event" ${occurrenceNotes(t,date)?`title="${esc(occurrenceNotes(t,date))}" tabindex="0" aria-label="${esc(t.name)}. Notiz: ${esc(occurrenceNotes(t,date))}"`:''}>${t.time?`<span class="muted">${esc(t.time)}${t.endTime?'–'+esc(t.endTime):''} Uhr</span> `:''}${esc(t.name)} ${labelBadge(occurrenceLabel(t,date))}</div>`).join('')|| (calView==='day'&&!googleEventsForDay(date).length?'<p class="muted">Keine Termine.</p>':'')}</div>`}).join('');return `<div class="panel"><div class="row"><h2>Kalender</h2><div class="row" role="group" aria-label="Kalenderansicht"><button class="${calView==='month'?'active':''}" onclick="changeCalView('month')">Monat</button><button class="${calView==='week'?'active':''}" onclick="changeCalView('week')">Woche</button><button class="${calView==='day'?'active':''}" onclick="changeCalView('day')">Tag</button></div><button onclick="moveCal(-1)" aria-label="Zurück">←</button><strong>${esc(title)}</strong><button onclick="moveCal(1)" aria-label="Weiter">→</button><button onclick="calOffset=0;calFocus=localDate(new Date());render()">Heute</button><button class="primary" onclick="openTaskDialog(localDate(new Date()))">+ Termin</button></div>${googleCalendarPanel()}${labelsPanel()}<div class="cal-scroll"><div class="cal-grid" style="grid-template-columns:repeat(${cols},minmax(${calView==='day'?'0':'105px'},1fr))">${calView==='month'?['Mo','Di','Mi','Do','Fr','Sa','So'].map(s=>`<strong>${s}</strong>`).join('')+Array.from({length:offset},()=>'<div></div>').join(''):''}${cards}</div></div><p class="muted">Labels einzelner Serientermine kannst du in der To-do-Liste ändern.</p></div>`}
-function data(){return wbSyncPanel()+`<div class="panel"><h2>Daten sichern</h2><p>Lokale Sicherung als JSON. Bei aktiver Cloud-Synchronisierung werden Änderungen zusätzlich in Supabase gespeichert.</p><button class="primary" onclick="backup()">Backup als JSON herunterladen</button><p><label>Backup importieren <input type="file" accept=".json,application/json" onchange="restore(event)"></label></p><p class="muted">Beim Import wird der bisherige Datenstand ersetzt.</p></div>`}function backup(){let blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='WiesbadenBrain-Backup-'+localDate(new Date())+'.json';a.click();URL.revokeObjectURL(a.href)}async function restore(e){let f=e.target.files[0];if(!f||!confirm('Alle aktuellen Daten durch das Backup ersetzen?'))return;try{let d=JSON.parse(await f.text());if(!Array.isArray(d.recipes)||!Array.isArray(d.tasks)||!Array.isArray(d.plan))throw Error();if(wbSyncEnabled&&!wbSyncIsPaused()){alert('Bitte die Cloud-Synchronisierung vor dem Import unter Daten pausieren.');return}if(wbSyncBusy||wbSyncWriting||wbSyncRequests){alert('Ein Cloud-Abgleich läuft noch. Bitte warten und erneut importieren.');return}wbSyncKeepRecovery();localStorage.setItem(KEY,JSON.stringify(d));state=d;save();render()}catch{alert('Ungültige Backup-Datei.')}}
+function data(){return wbSyncPanel()+wbResolvePanel()+`<div class="panel"><h2>Daten sichern</h2><p>Lokale Sicherung als JSON. Bei aktiver Cloud-Synchronisierung werden Änderungen zusätzlich in Supabase gespeichert.</p><button class="primary" onclick="backup()">Backup als JSON herunterladen</button><p><label>Backup importieren <input type="file" accept=".json,application/json" onchange="restore(event)"></label></p><p class="muted">Beim Import wird der bisherige Datenstand ersetzt.</p></div>`}function backup(){let blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='WiesbadenBrain-Backup-'+localDate(new Date())+'.json';a.click();URL.revokeObjectURL(a.href)}async function restore(e){let f=e.target.files[0];if(!f||!confirm('Alle aktuellen Daten durch das Backup ersetzen?'))return;try{let d=JSON.parse(await f.text());if(!Array.isArray(d.recipes)||!Array.isArray(d.tasks)||!Array.isArray(d.plan))throw Error();if(wbSyncEnabled&&!wbSyncIsPaused()){alert('Bitte die Cloud-Synchronisierung vor dem Import unter Daten pausieren.');return}if(wbSyncBusy||wbSyncWriting||wbSyncRequests){alert('Ein Cloud-Abgleich läuft noch. Bitte warten und erneut importieren.');return}wbSyncKeepRecovery();localStorage.setItem(KEY,JSON.stringify(d));state=d;save();render()}catch{alert('Ungültige Backup-Datei.')}}
 const PACK_SEED = [["Vor der Abreise", [["Proviant", true], ["Müll wegbringen", true], ["Pflanzen versorgen", true]]], ["Wichtig", [["Reisepässe/ IDs", true], ["Versicherungskarten", true], ["Hand-sanitizer", true], ["Cash", true], ["Impfpässe, Ausweise etc. digital", true], ["Sonnenbrille", true], ["Brille + Etui", true], ["Kopfhörer, Airpods", true], ["Medizin: Schmerzen, Schlafen, Kaka, Pflaster (Nasenspray, Hustenbonbons), Herpespflaster", true], ["No bite", true], ["Flickzeug Fahrrad", true]]], ["Klamotten Dimitri", [["Regensachen", true], ["Unterwäsche/Socken", true], ["T-Shirts, Pullover, Hosen / Shorts", true], ["Leggins", true], ["Badesachen", true], ["Schlafanzug", true], ["Basecaps, Mützen, Sonnen-Hut?", true], ["Schuhe, Sandalen, Wasserschuhe", true], ["Warme Socken", true]]], ["Grumpy", [["Regensachen", false], ["…", false]]], ["Kinder", [["Klamotten", false], ["Regensachen", true], ["Ibuprofen", true], ["Friseurschere", true], ["Kaugummis", true], ["Zahnpasta", true], ["Zahnspange", true], ["Spielzeug, Kuscheltier, Stifte, Spiele", true], ["Taucher-Brillen und -Ausrüstung, Luftmatratze, Bade-Spaß", true], ["Taschenlampen", true]]], ["Technik", [["Ladekabel (Handy, Zahnbürste, Tablet, Laptop, Uhr)", true], ["Kamera", true], ["JBL-Box", true], ["Powerbank", true]]], ["Kosmetik", [["Zahnbürsten", true], ["Zahnseide", true], ["Bodylotion", true], ["Fungizid", true], ["Mückenschutz, Kühlgel", true], ["Ohrstöpsel", true], ["Nacht- und Tagescreme", true], ["Sonnencreme", true], ["Bite away", true], ["Kontaktlinsen", true], ["Duschgel, Shampoo", true], ["Einweg-Rasierer", true], ["Abschminktuch", true], ["Feuchtetücher", true], ["Augentropfen", true]]], ["Anderes", [["Regenschirm", true], ["ADAC?", true], ["Jonglierbälle", true], ["Schlafsack-Inlay", true], ["Kaffeebecher", true], ["Umhängetasche, Beutel, Bauchtasche", true], ["Nasenklemme", true], ["Literatur", true], ["Wasserflaschen", true], ["Tüte für Dreckwäsche", true], ["Badeschuhe?", true], ["Neo?", true], ["Joggingschuhe, Sportsachen?", true], ["Handtuch", true]]], ["Dienstreise", [["Bügeleisen", true], ["Adapter", false], ["Ladekabel", false], ["Tesa-Film, Schere", true], ["USB Stick", true], ["Laserpointer", true], ["Eule", true], ["Fisherman’s", false], ["Kamm", false]]]];
 function packInit(){if(!state.packLists.length){state.packLists=[{id:uid(),name:'Reisevorlage',groups:PACK_SEED.map(([name,items])=>({id:uid(),name,items:items.map(([name])=>({id:uid(),name,done:false}))}))}];save()}}
 let selectedPack='';
@@ -363,7 +363,107 @@ async function wbSyncResolveTestConflict(){if(wbSyncIsPaused()){wbSyncStatusSet(
 }
 async function wbSyncRetryConflict(){if(wbSyncIsPaused()){wbSyncStatusSet('⏸ Cloud pausiert – Daten bleiben lokal.');return}if(wbSyncBusy||wbSyncWriting)return;wbSyncConflict=false;wbSyncStatusSet('Prüfe beide Datenstände erneut …');await wbSyncConnect()}
 function wbSyncKeepRecovery(){try{localStorage.setItem(WB_SYNC_RECOVERY_KEY,JSON.stringify({savedAt:new Date().toISOString(),data:state}))}catch(e){console.warn('Recovery backup failed',e)}}
-function wbSyncPanel(){return `<div class="panel"><h2>☁ WiesbadenBrain synchronisieren</h2><p class="muted">Rezepte, Aufgaben, Kalender, Einkaufslisten und Packlisten über dein Supabase-Konto auf allen Geräten verwenden. Google-Kalender-Anmeldungen und Bring!-Zugangsdaten werden nicht mitgespeichert.</p><p role="status">${esc(wbSyncIsPaused()?'⏸ Cloud pausiert – Änderungen und Importe bleiben lokal.':wbSyncStatus)}</p><p class="muted">Bei fehlender Anmeldung bleiben Änderungen lokal vorgemerkt. Beim erneuten Anmelden werden unabhängige Änderungen automatisch zusammengeführt; widersprüchliche Änderungen werden nicht überschrieben.</p>${!wbBringSession&&wbSyncShowLogin?`<form onsubmit="wbSyncDirectLogin(event)"><input name="email" type="email" required autocomplete="username" placeholder="Supabase-E-Mail"><input name="password" type="password" required autocomplete="current-password" placeholder="Passwort"><button class="primary">Anmelden</button></form>`:''}<div class="row">${wbSyncIsPaused()?'<button onclick="wbSyncResume()">Cloud-Synchronisierung fortsetzen</button>':'<button onclick="wbSyncPause()">Cloud-Synchronisierung pausieren</button>'}${wbSyncIsPaused()?'':!wbBringSession?'<button class="primary" onclick="wbSyncLoginPrompt()">Mit Supabase anmelden</button>':`<button onclick="wbSyncConnect()">Cloud-Status prüfen</button>${!wbSyncVersion?'<button class="primary" onclick="wbSyncInitialUpload()">Daten dieses Geräts erstmalig in Cloud speichern</button>':''}${wbSyncVersion&&!wbSyncEnabled?'<button class="primary" onclick="wbSyncEnable()">Cloud-Daten auf diesem Gerät verwenden</button>':''}${wbSyncEnabled?'<button onclick="wbSyncPull()">Jetzt aktualisieren</button>':''}${wbSyncConflict?'<button class="primary" onclick="wbSyncRetryConflict()">Konflikt erneut prüfen</button><button onclick="wbSyncDownloadCloud()">Cloud-Version als JSON sichern</button><button class="primary" onclick="wbSyncResolveTestConflict()">Vier Testeinträge entfernen & Konflikt lösen</button>':''}`}</div><p class="muted">Erst auf dem Rechner mit den vollständigen Rezepten „erstmalig in Cloud speichern“ klicken. Auf iPad und iPhone anschließend „Cloud-Daten auf diesem Gerät verwenden“. Vorher Backup aufbewahren. Bei konkurrierenden Änderungen wird die Synchronisierung gestoppt, statt Daten zu überschreiben.</p></div>`}
+// BEGIN reviewed cloud transfer: preparation never writes cloud data.
+let wbResolveReview=null,wbResolveBusy=false,wbResolveMessage='';
+function wbResolveCanonical(value){
+ if(Array.isArray(value))return '['+value.map(wbResolveCanonical).join(',')+']';
+ if(value&&typeof value==='object')return '{'+Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+wbResolveCanonical(value[k])).join(',')+'}';
+ return JSON.stringify(value);
+}
+function wbResolveValid(data){return data&&typeof data==='object'&&!Array.isArray(data)&&['recipes','tasks','plan'].every(k=>Array.isArray(data[k]))}
+function wbResolveMissing(remote,local,path=''){
+ if(wbResolveCanonical(remote)===wbResolveCanonical(local))return [];
+ // Shopping removal flags are reviewed separately: keeping an item visible preserves its content.
+ if(path==='/shoppingRemoved'||path.startsWith('/shoppingRemoved/'))return [];
+ if(Array.isArray(remote)&&Array.isArray(local)){
+  const identified=a=>a.every(x=>x&&typeof x==='object'&&!Array.isArray(x)&&typeof x.id==='string');
+  if(identified(remote)&&identified(local)){
+   if(new Set(remote.map(x=>x.id)).size!==remote.length||new Set(local.map(x=>x.id)).size!==local.length)return [path+' (doppelte IDs)'];
+   const map=new Map(local.map(x=>[x.id,x]));return remote.flatMap(x=>map.has(x.id)?wbResolveMissing(x,map.get(x.id),path+'/'+x.id):[path+'/'+x.id]);
+  }
+  return remote.every(x=>local.some(y=>wbResolveCanonical(x)===wbResolveCanonical(y)))?[]:[path];
+ }
+ if(remote&&local&&typeof remote==='object'&&typeof local==='object'&&!Array.isArray(remote)&&!Array.isArray(local))return Object.keys(remote).flatMap(k=>Object.hasOwn(local,k)?wbResolveMissing(remote[k],local[k],path+'/'+k):[path+'/'+k]);
+ return [path||'/'];
+}
+async function wbResolveApi(method,user,version,data){
+ if(!wbSyncIsPaused())throw Error('Bitte zuerst die Cloud-Synchronisierung pausieren.');
+ if(!['GET','PATCH'].includes(method))throw Error('Unzulässige Aktion.');
+ wbSyncRequests++;
+ try{
+  const token=await wbBringToken();
+  if(!wbSyncIsPaused())throw Error('Die Cloud-Pause wurde beendet. Bitte erneut prüfen.');
+  if(wbSyncIdentity(token)!==user)throw Error('Das angemeldete Konto wurde geändert. Bitte erneut prüfen.');
+  let query='?select=data,updated_at&user_id=eq.'+encodeURIComponent(user);
+  const options={method,headers:{apikey:WB_BRING_KEY,Authorization:'Bearer '+token,Accept:'application/json'},signal:AbortSignal.timeout(20000)};
+  if(method==='PATCH'){
+   if(!version||!wbResolveValid(data))throw Error('Geprüfter Datenstand fehlt.');
+   query+='&updated_at=eq.'+encodeURIComponent(version);
+   options.headers['Content-Type']='application/json';options.headers.Prefer='return=representation';
+   options.body=JSON.stringify({data,updated_at:new Date().toISOString()});
+  }
+  const response=await fetch(WB_BRING_URL+'/rest/v1/'+WB_SYNC_TABLE+query,options);
+  if(!response.ok)throw Error('Cloud-Anfrage fehlgeschlagen (HTTP '+response.status+').');
+  const result=await response.json();if(!Array.isArray(result))throw Error('Unerwartete Cloud-Antwort.');return result;
+ }finally{wbSyncRequests--}
+}
+async function wbResolvePrepare(){
+ if(wbResolveBusy||wbSyncBusy||wbSyncWriting||wbSyncRequests)return;
+ wbResolveBusy=true;wbResolveReview=null;
+ try{
+  if(!wbSyncIsPaused())throw Error('Bitte zuerst die Cloud-Synchronisierung pausieren.');
+  if(!wbBringSession)throw Error('Bitte bei Supabase anmelden. Die Cloud-Pause dabei eingeschaltet lassen.');
+  const token=await wbBringToken(),user=wbSyncIdentity(token);if(!user)throw Error('Benutzer-ID fehlt.');
+  const rows=await wbResolveApi('GET',user);
+  if(rows.length!==1||!rows[0].updated_at||!wbResolveValid(rows[0].data)||!wbResolveValid(state))throw Error('Datenstand ungültig oder nicht eindeutig.');
+  const local=structuredClone(state),remote=structuredClone(rows[0].data);
+  const missing=wbResolveMissing(remote,local);
+  const stamp=new Date().toISOString().replace(/[:.]/g,'-');
+  wbSyncDownloadJson(local,'WiesbadenBrain-Lokal-vor-Uebernahme-'+stamp+'.json');
+  wbSyncDownloadJson(remote,'WiesbadenBrain-Cloud-vor-Uebernahme-'+stamp+'.json');
+  wbResolveReview={user,version:rows[0].updated_at,local,remote,missing};
+  wbResolveMessage='Vergleich vorbereitet. Noch keine Cloud-Daten verändert. Bitte beide heruntergeladenen Sicherungen und die Unterschiede prüfen.';
+ }catch(e){wbResolveMessage=e.message}finally{wbResolveBusy=false;render()}
+}
+function wbResolvePanel(){
+ if(!wbSyncIsPaused())return '';
+ let details='';const review=wbResolveReview;
+ if(review){
+  const a=review.local,b=review.remote;
+  const keys=[...new Set([...Object.keys(a),...Object.keys(b)])].filter(k=>wbResolveCanonical(a[k])!==wbResolveCanonical(b[k]));
+  const localOnly=a.recipes.filter(x=>!b.recipes.some(y=>y.id===x.id)).map(x=>x.name);
+  const remoteOnly=b.recipes.filter(x=>!a.recipes.some(y=>y.id===x.id)).map(x=>x.name);
+  details=`<p>Rezepte: Mac <strong>${a.recipes.length}</strong>, Cloud <strong>${b.recipes.length}</strong>. Aufgaben: Mac ${a.tasks.length}, Cloud ${b.tasks.length}.</p><p>Nur auf dem Mac: ${esc(localOnly.join(', ')||'keine zusätzlichen Rezepte')}. Nur in der Cloud: ${esc(remoteOnly.join(', ')||'keine zusätzlichen Rezepte')}.</p><p>Abweichende Bereiche: ${esc(keys.join(', ')||'keine')}.</p><details><summary>Unterschiede im Einzelnen anzeigen</summary>${keys.map(k=>`<h4>${esc(k)}</h4><p>Cloud:</p><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(JSON.stringify(b[k],null,2)??'(fehlt)')}</pre><p>Geprüfter Mac-Stand:</p><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(JSON.stringify(a[k],null,2)??'(fehlt)')}</pre>`).join('')}</details>`;
+  if(review.missing.length)details+=`<p role="alert"><strong>Übernahme gesperrt:</strong> Folgende Cloud-Inhalte fehlen oder unterscheiden sich im Mac-Stand: ${esc(review.missing.join(', '))}. Bitte beide neuen Sicherungen erneut vergleichen und zusammenführen.</p>`;
+  else details+=`<p>Die Cloud-Inhalte sind im Mac-Stand enthalten. Abweichende Entfernungsmarkierungen der Einkaufsliste werden durch die Mac-Markierungen ersetzt; Artikel können dadurch wieder erscheinen. Die Übernahme speichert den gesamten oben geprüften Mac-Stand in der Cloud.</p><label><input id="wbResolveBackupsConfirmed" type="checkbox"> Beide JSON-Sicherungen sind heruntergeladen und die Unterschiede sind geprüft.</label><p><button class="primary" onclick="wbResolveCommit()" ${wbResolveBusy?'disabled':''}>Geprüften Mac-Stand in Cloud übernehmen</button></p>`;
+ }
+ return `<div class="panel"><h2>Geprüften Mac-Stand in die Cloud übernehmen</h2><p>Die automatische Synchronisierung bleibt pausiert. Sichere und vergleiche zuerst beide Stände. Falls inzwischen Cloud-Inhalte hinzugekommen sind oder geändert wurden, wird die Übernahme gesperrt.</p><p role="status">${esc(wbResolveMessage)}</p>${!wbBringSession?'<button onclick="wbSyncLoginPrompt()">Für den Vergleich bei Supabase anmelden</button>':''}<button onclick="wbResolvePrepare()" ${wbResolveBusy?'disabled':''}>Beide Stände sichern &amp; Vergleich vorbereiten</button>${details}</div>`;
+}
+async function wbResolveCommit(){
+ if(wbResolveBusy||wbSyncBusy||wbSyncWriting||wbSyncRequests)return;
+ const review=wbResolveReview;
+ if(!review||review.missing.length){alert('Bitte zuerst beide Datenstände sichern und vergleichen.');return}
+ if(!document.getElementById('wbResolveBackupsConfirmed')?.checked){alert('Bitte zuerst beide heruntergeladenen Sicherungen und die Unterschiede bestätigen.');return}
+ if(!wbSyncIsPaused()||wbResolveCanonical(state)!==wbResolveCanonical(review.local)){wbResolveReview=null;wbResolveMessage='Der lokale Stand oder die Cloud-Pause wurde geändert. Bitte den Vergleich erneut vorbereiten.';render();return}
+ if(!confirm('Jetzt den geprüften Mac-Stand in die Cloud übernehmen? Der Cloud-Datenstand wird durch die geprüfte Version ersetzt. Die zwei Sicherungsdateien bleiben als Rückweg erhalten. Die automatische Synchronisierung bleibt pausiert.'))return;
+ wbResolveBusy=true;wbSyncWriting=true;
+ try{
+  wbSyncKeepRecovery();
+  const rows=await wbResolveApi('PATCH',review.user,review.version,review.local);
+  if(rows.length!==1){wbResolveReview=null;throw Error('Die Cloud wurde inzwischen geändert. Keine Übernahme ausgeführt. Bitte beide Stände erneut sichern und vergleichen.')}
+  wbResolveReview=null;
+  if(!rows[0].updated_at||wbResolveCanonical(rows[0].data)!==wbResolveCanonical(review.local))throw Error('Die Cloud hat eine abweichende Antwort geliefert. Bitte die Cloud-Sicherung erneut herunterladen und prüfen; nicht erneut übertragen.');
+  wbSyncVersion=rows[0].updated_at;wbSyncUserId=review.user;wbSyncSetBase(review.local);
+  wbSyncLastSaved=JSON.stringify(review.local);wbSyncConflict=false;wbSyncConflictPaths=[];wbSyncReady=false;
+  wbSyncDirty=wbResolveCanonical(state)!==wbResolveCanonical(review.local);
+  if(wbSyncDirty)localStorage.setItem(WB_SYNC_PENDING_KEY,'yes');else localStorage.removeItem(WB_SYNC_PENDING_KEY);
+  wbResolveMessage='✓ Der geprüfte Mac-Stand wurde in die Cloud übernommen. Die automatische Synchronisierung bleibt pausiert. Bitte vor dem Fortsetzen auch die lokalen iPad-Daten sichern.';
+ }catch(e){wbResolveReview=null;wbResolveMessage='Übernahme nicht bestätigt: '+e.message+' Bei einem Verbindungsabbruch kann die Anfrage dennoch angekommen sein. Vor einem weiteren Versuch beide Stände erneut vergleichen.'}
+ finally{wbResolveBusy=false;wbSyncWriting=false;render()}
+}
+// END reviewed cloud transfer.
+
+function wbSyncPanel(){return `<div class="panel"><h2>☁ WiesbadenBrain synchronisieren</h2><p class="muted">Rezepte, Aufgaben, Kalender, Einkaufslisten und Packlisten über dein Supabase-Konto auf allen Geräten verwenden. Google-Kalender-Anmeldungen und Bring!-Zugangsdaten werden nicht mitgespeichert.</p><p role="status">${esc(wbSyncStatus)}${wbSyncIsPaused()?'<br>⏸ Cloud bleibt pausiert.':''}</p><p class="muted">Bei fehlender Anmeldung bleiben Änderungen lokal vorgemerkt. Beim erneuten Anmelden werden unabhängige Änderungen automatisch zusammengeführt; widersprüchliche Änderungen werden nicht überschrieben.</p>${!wbBringSession&&wbSyncShowLogin?`<form onsubmit="wbSyncDirectLogin(event)"><input name="email" type="email" required autocomplete="username" placeholder="Supabase-E-Mail"><input name="password" type="password" required autocomplete="current-password" placeholder="Passwort"><button class="primary">Anmelden</button></form>`:''}<div class="row">${wbSyncIsPaused()?'<button onclick="wbSyncResume()">Cloud-Synchronisierung fortsetzen</button>':'<button onclick="wbSyncPause()">Cloud-Synchronisierung pausieren</button>'}${wbSyncIsPaused()?'':!wbBringSession?'<button class="primary" onclick="wbSyncLoginPrompt()">Mit Supabase anmelden</button>':`<button onclick="wbSyncConnect()">Cloud-Status prüfen</button>${!wbSyncVersion?'<button class="primary" onclick="wbSyncInitialUpload()">Daten dieses Geräts erstmalig in Cloud speichern</button>':''}${wbSyncVersion&&!wbSyncEnabled?'<button class="primary" onclick="wbSyncEnable()">Cloud-Daten auf diesem Gerät verwenden</button>':''}${wbSyncEnabled?'<button onclick="wbSyncPull()">Jetzt aktualisieren</button>':''}${wbSyncConflict?'<button class="primary" onclick="wbSyncRetryConflict()">Konflikt erneut prüfen</button><button onclick="wbSyncDownloadCloud()">Cloud-Version als JSON sichern</button><button class="primary" onclick="wbSyncResolveTestConflict()">Vier Testeinträge entfernen & Konflikt lösen</button>':''}`}</div><p class="muted">Erst auf dem Rechner mit den vollständigen Rezepten „erstmalig in Cloud speichern“ klicken. Auf iPad und iPhone anschließend „Cloud-Daten auf diesem Gerät verwenden“. Vorher Backup aufbewahren. Bei konkurrierenden Änderungen wird die Synchronisierung gestoppt, statt Daten zu überschreiben.</p></div>`}
 function wbSyncLoginPrompt(){wbSyncShowLogin=true;render()}
 async function wbSyncDirectLogin(e){e.preventDefault();const fd=new FormData(e.target);try{const r=await fetch(WB_BRING_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{apikey:WB_BRING_KEY,'Content-Type':'application/json'},body:JSON.stringify({email:fd.get('email'),password:fd.get('password')})});const d=await r.json();if(!r.ok||!d.access_token)throw Error(d.error_description||d.msg||'Anmeldung fehlgeschlagen');wbBringSetSession(d);wbSyncShowLogin=false;wbSyncStatusSet('Angemeldet. Verbinde Cloud …');await wbSyncConnect()}catch(err){wbSyncStatusSet('Anmeldung fehlgeschlagen: '+err.message)}}
 function wbSyncOnAuthChange(){if(!wbBringSession){wbSyncReady=false;wbSyncVersion='';wbSyncUserId='';wbSyncStatusSet('🔴 Nicht angemeldet. Änderungen bleiben lokal und werden nach Anmeldung abgeglichen.')}}
@@ -373,8 +473,9 @@ function wbSyncPause(){
  wbSyncStatusSet('⏸ Cloud pausiert. Änderungen und Importe bleiben lokal. Die Pause bleibt nach dem Neuladen bestehen.');return true;
 }
 function wbSyncResume(){
+ if(wbSyncBusy||wbSyncWriting||wbSyncRequests){alert('Ein Cloud-Abgleich läuft noch. Bitte warten, bevor du die Pause beendest.');return}
  if(!confirm('Cloud-Synchronisierung fortsetzen? Lokale Änderungen und importierte Daten können nach dem Abgleich in die Cloud übertragen werden.'))return;
- localStorage.removeItem(WB_SYNC_PAUSED_KEY);wbSyncStatusSet('Cloud-Pause beendet. Prüfe Datenstände …');wbSyncConnect();
+ wbResolveReview=null;localStorage.removeItem(WB_SYNC_PAUSED_KEY);wbSyncStatusSet('Cloud-Pause beendet. Prüfe Datenstände …');wbSyncConnect();
 }
 async function wbSyncApi(method,query='',body,prefer='return=representation'){
  if(wbSyncIsPaused())throw Error('Cloud-Synchronisierung ist pausiert');
