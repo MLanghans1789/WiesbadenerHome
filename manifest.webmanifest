@@ -1,1 +1,25 @@
-{"name": "Meal Planner – Meine Rezepte", "short_name": "Meal Planner", "start_url": "./", "scope": "./", "display": "standalone", "background_color": "#101725", "theme_color": "#101725", "icons": [{"src": "icon-192.png", "sizes": "192x192", "type": "image/png"}, {"src": "icon-512.png", "sizes": "512x512", "type": "image/png"}]}
+{
+  "id": "./",
+  "name": "WiesbadenBrain",
+  "short_name": "WiesbadenBrain",
+  "lang": "de",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "theme_color": "#10151c",
+  "background_color": "#10151c",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
